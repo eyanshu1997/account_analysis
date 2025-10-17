@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Analysis - Transaction Categorization Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .card-stats {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .stats-icon {
+            font-size: 2rem;
+            opacity: 0.7;
+        }
+        .transaction-table {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .savings-card {
+            background: linear-gradient(45deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+        .expenses-card {
+            background: linear-gradient(45deg, #fc4a1a 0%, #f7b733 100%);
+            color: white;
+        }
+        .income-card {
+            background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        .table-sort {
+            cursor: pointer;
+            user-select: none;
+        }
+        .table-sort:hover {
+            background-color: rgba(0,0,0,0.1);
+        }
+        .loading {
+            text-align: center;
+            padding: 2rem;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    {% include 'partials/navbar.html' %}
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1><i class="fas fa-analytics"></i> Financial Analysis</h1>
+                    <button class="btn btn-primary" onclick="refreshData()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading analysis data...</p>
+        </div>
+
+        <div id="analysisContent" style="display: none;">
+            <!-- Summary Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card expenses-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-money-bill-wave stats-icon"></i>
+                            <h5 class="card-title mt-2">Total Expenses</h5>
+                            <h3 id="totalExpenses">₹0</h3>
+                            <small id="expensesCount">0 transactions</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card income-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-coins stats-icon"></i>
+                            <h5 class="card-title mt-2">Total Income</h5>
+                            <h3 id="totalIncome">₹0</h3>
+                            <small id="incomeCount">0 transactions</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card savings-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-piggy-bank stats-icon"></i>
+                            <h5 class="card-title mt-2">Total Savings</h5>
+                            <h3 id="totalSavings">₹0</h3>
+                            <small id="savingsCount">0 transactions</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card card-stats">
+                        <div class="card-body text-center">
+                            <i class="fas fa-percentage stats-icon"></i>
+                            <h5 class="card-title mt-2">Savings Rate</h5>
+                            <h3 id="savingsRate">0%</h3>
+                            <small id="netIncome">Net: ₹0</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monthly Stacked Bars -->
+            <div class="row mb-4">
+                <div class="col-lg-12 mb-4">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                Monthly Overview (Expenses by Category)
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container" style="height: 360px;">
+                                <canvas id="expenseMonthlyChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-12 mb-4">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                Monthly Overview (Income by Category)
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container" style="height: 360px;">
+                                <canvas id="incomeMonthlyChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="row mb-4">
+                <div class="col-lg-6 mb-4">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-pie me-2"></i>
+                                Expense Categories
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="expenseChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6 mb-4">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-pie me-2"></i>
+                                Income Categories
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="incomeChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transaction Tables -->
+            <div class="row">
+                <!-- Expenses Table -->
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5><i class="fas fa-shopping-cart text-danger"></i> Top Expenses</h5>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-secondary" onclick="sortTable('expenses', 'amount')">
+                                    <i class="fas fa-sort-amount-down"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="sortTable('expenses', 'date')">
+                                    <i class="fas fa-calendar"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="transaction-table">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th class="table-sort" onclick="sortTable('expenses', 'date')">Date</th>
+                                            <th class="table-sort" onclick="sortTable('expenses', 'amount')">Amount</th>
+                                            <th class="table-sort" onclick="sortTable('expenses', 'category')">Category</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="expensesTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Income Table -->
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5><i class="fas fa-hand-holding-usd text-success"></i> Income Sources</h5>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-secondary" onclick="sortTable('income', 'amount')">
+                                    <i class="fas fa-sort-amount-down"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="sortTable('income', 'date')">
+                                    <i class="fas fa-calendar"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="transaction-table">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th class="table-sort" onclick="sortTable('income', 'date')">Date</th>
+                                            <th class="table-sort" onclick="sortTable('income', 'amount')">Amount</th>
+                                            <th class="table-sort" onclick="sortTable('income', 'category')">Category</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="incomeTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Savings Table -->
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5><i class="fas fa-university text-info"></i> Savings & Investments</h5>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-secondary" onclick="sortTable('savings', 'amount')">
+                                    <i class="fas fa-sort-amount-down"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="sortTable('savings', 'date')">
+                                    <i class="fas fa-calendar"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="transaction-table">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th class="table-sort" onclick="sortTable('savings', 'date')">Date</th>
+                                            <th class="table-sort" onclick="sortTable('savings', 'amount')">Amount</th>
+                                            <th class="table-sort" onclick="sortTable('savings', 'category')">Category</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="savingsTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Transactions Modal -->
+    <div class="modal fade" id="categoryModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-list me-2"></i>
+                        <span id="categoryModalTitle">Category Details</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-3">
+                            <input id="catFrom" type="date" class="form-control" placeholder="From date">
+                        </div>
+                        <div class="col-md-3">
+                            <input id="catTo" type="date" class="form-control" placeholder="To date">
+                        </div>
+                        <div class="col-md-3">
+                            <input id="catSearch" type="text" class="form-control" placeholder="Search description or notes...">
+                        </div>
+                        <div class="col-md-3">
+                            <select id="catSort" class="form-select">
+                                <option value="amount_desc">Amount: High to Low</option>
+                                <option value="amount_asc">Amount: Low to High</option>
+                                <option value="date_desc">Date: Newest First</option>
+                                <option value="date_asc">Date: Oldest First</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Amount</th>
+                                    <th>Description</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="categoryTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let analysisData = {};
+        let currentSort = {
+            expenses: { column: 'amount', direction: 'desc' },
+            income: { column: 'amount', direction: 'desc' },
+            savings: { column: 'amount', direction: 'desc' }
+        };
+        let expenseChart = null;
+        let incomeChart = null;
+        let expenseMonthlyChart = null;
+        let incomeMonthlyChart = null;
+        let currentCategoryTxns = [];
+        let currentCategoryMeta = { type: '', category: '', total: 0, count: 0 };
+
+        // Color palettes for charts
+        const expenseColors = [
+            '#FF6384', '#FF9F40', '#FFCD56', '#4BC0C0', '#9966FF',
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'
+        ];
+        
+        const incomeColors = [
+            '#36A2EB', '#4BC0C0', '#9966FF', '#FF9F40', '#FFCD56',
+            '#2ECC71', '#3498DB', '#E74C3C', '#F39C12', '#8E44AD'
+        ];
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+                maximumFractionDigits: 0
+            }).format(amount);
+        }
+
+        function parseBankDate(dateStr) {
+            // Handles formats like DD/MM/YY or DD/MM/YYYY
+            if (!dateStr || typeof dateStr !== 'string') return null;
+            const parts = dateStr.split('/');
+            if (parts.length !== 3) return null;
+            let [dd, mm, yy] = parts.map(p => p.trim());
+            const day = parseInt(dd, 10);
+            const month = parseInt(mm, 10) - 1; // JS months 0-11
+            let year = parseInt(yy, 10);
+            if (yy.length === 2) {
+                year = year >= 70 ? 1900 + year : 2000 + year;
+            }
+            if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+            return new Date(year, month, day);
+        }
+
+        function formatDate(dateStr) {
+            const date = parseBankDate(dateStr);
+            if (!date) return dateStr;
+            return date.toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: '2-digit'
+            });
+        }
+
+        function createPieChart(canvas, data, colors, title) {
+            const ctx = canvas.getContext('2d');
+            
+            if (Object.keys(data).length === 0) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#666';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('No data available', canvas.width / 2, canvas.height / 2);
+                return null;
+            }
+
+            const labels = Object.keys(data);
+            const values = Object.values(data).map(v => Math.abs(v));
+            const backgroundColors = colors.slice(0, labels.length);
+
+            return new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return context.label + ': ' + formatCurrency(value) + ' (' + percentage + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function loadAnalysisData() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('analysisContent').style.display = 'none';
+
+            // Load analysis data, pie chart data, and monthly stacked data
+            Promise.all([
+                fetch('/api/analysis_data').then(response => response.json()),
+                fetch('/api/chart_data').then(response => response.json()),
+                fetch('/api/monthly_chart_data').then(response => response.json())
+            ])
+            .then(([analysisResponse, chartResponse, monthlyResponse]) => {
+                if (analysisResponse.success && chartResponse.success && monthlyResponse.success) {
+                    analysisData = analysisResponse.data;
+                    updateSummaryCards();
+                    updateTables();
+                    updateCharts(chartResponse.expense_data, chartResponse.income_data);
+                    updateMonthlyCharts(monthlyResponse.expenses, monthlyResponse.income);
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('analysisContent').style.display = 'block';
+                } else {
+                    throw new Error(analysisResponse.error || chartResponse.error || monthlyResponse.error || 'Failed to load data');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loading').innerHTML = 
+                    `<div class="alert alert-danger">Error loading analysis data: ${error.message}</div>`;
+            });
+        }
+
+        function updateCharts(expenseData, incomeData) {
+            const expenseCanvas = document.getElementById('expenseChart');
+            const incomeCanvas = document.getElementById('incomeChart');
+
+            if (expenseChart) expenseChart.destroy();
+            if (incomeChart) incomeChart.destroy();
+
+            expenseChart = createPieChart(expenseCanvas, expenseData || {}, expenseColors, 'Expenses');
+            incomeChart = createPieChart(incomeCanvas, incomeData || {}, incomeColors, 'Income');
+
+            // Click handlers to open category details
+            expenseCanvas.onclick = function(evt) {
+                if (!expenseChart) return;
+                const points = expenseChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+                if (points.length) {
+                    const idx = points[0].index;
+                    const label = expenseChart.data.labels[idx];
+                    showCategoryDetails('expenses', label);
+                }
+            };
+            incomeCanvas.onclick = function(evt) {
+                if (!incomeChart) return;
+                const points = incomeChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+                if (points.length) {
+                    const idx = points[0].index;
+                    const label = incomeChart.data.labels[idx];
+                    showCategoryDetails('income', label);
+                }
+            };
+        }
+
+        // Helpers for monthly stacked bar charts
+        function toColorMap(labels, palette) {
+            const map = {};
+            labels.forEach((lbl, idx) => { map[lbl] = palette[idx % palette.length]; });
+            return map;
+        }
+
+        function createStackedBarChart(canvas, payload, palette) {
+            const ctx = canvas.getContext('2d');
+            if (!payload || !payload.labels || payload.labels.length === 0) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#666';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('No data available', canvas.width / 2, canvas.height / 2);
+                return null;
+            }
+            const labels = payload.labels;
+            const categories = (payload.datasets || []).map(d => d.label);
+            const colorMap = toColorMap(categories, palette);
+            const datasets = (payload.datasets || []).map(d => ({
+                label: d.label,
+                data: d.data,
+                backgroundColor: colorMap[d.label] || '#888',
+                borderWidth: 1,
+                borderColor: '#fff',
+                stack: 'stack-0'
+            }));
+            return new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed.y || 0;
+                                    return `${context.dataset.label}: ${formatCurrency(value)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true }
+                    }
+                }
+            });
+        }
+
+        function updateMonthlyCharts(expensePayload, incomePayload) {
+            const expCanvas = document.getElementById('expenseMonthlyChart');
+            const incCanvas = document.getElementById('incomeMonthlyChart');
+            if (expenseMonthlyChart) expenseMonthlyChart.destroy();
+            if (incomeMonthlyChart) incomeMonthlyChart.destroy();
+            expenseMonthlyChart = createStackedBarChart(expCanvas, expensePayload, expenseColors);
+            incomeMonthlyChart = createStackedBarChart(incCanvas, incomePayload, incomeColors);
+        }
+
+        function updateSummaryCards() {
+            // Update expenses
+            document.getElementById('totalExpenses').textContent = formatCurrency(analysisData.expenses.total);
+            document.getElementById('expensesCount').textContent = `${analysisData.expenses.count} transactions`;
+
+            // Update income
+            document.getElementById('totalIncome').textContent = formatCurrency(analysisData.income.total);
+            document.getElementById('incomeCount').textContent = `${analysisData.income.count} transactions`;
+
+            // Update savings
+            document.getElementById('totalSavings').textContent = formatCurrency(analysisData.savings.total);
+            document.getElementById('savingsCount').textContent = `${analysisData.savings.count} transactions`;
+
+            // Update summary
+            document.getElementById('savingsRate').textContent = `${analysisData.summary.savings_rate.toFixed(1)}%`;
+            document.getElementById('netIncome').textContent = `Net: ${formatCurrency(analysisData.summary.net_income)}`;
+        }
+
+        function sortTransactions(transactions, column, direction) {
+            return transactions.sort((a, b) => {
+                let valueA = a[column];
+                let valueB = b[column];
+
+                if (column === 'amount') {
+                    valueA = parseFloat(valueA);
+                    valueB = parseFloat(valueB);
+                } else if (column === 'date') {
+                    valueA = parseBankDate(valueA) || new Date(valueA);
+                    valueB = parseBankDate(valueB) || new Date(valueB);
+                } else {
+                    valueA = valueA.toString().toLowerCase();
+                    valueB = valueB.toString().toLowerCase();
+                }
+
+                if (direction === 'asc') {
+                    return valueA > valueB ? 1 : -1;
+                } else {
+                    return valueA < valueB ? 1 : -1;
+                }
+            });
+        }
+
+        function updateTables() {
+            updateTable('expenses', analysisData.expenses.transactions);
+            updateTable('income', analysisData.income.transactions);
+            updateTable('savings', analysisData.savings.transactions);
+        }
+
+        function updateTable(type, transactions) {
+            const tbody = document.getElementById(`${type}TableBody`);
+            const sort = currentSort[type];
+            const sortedTransactions = sortTransactions([...transactions], sort.column, sort.direction);
+
+            tbody.innerHTML = sortedTransactions.map(transaction => `
+                <tr>
+                    <td class="small">${formatDate(transaction.date)}</td>
+                    <td class="fw-bold">${formatCurrency(transaction.amount)}</td>
+                    <td>
+                        <span class="badge bg-secondary" style="cursor: pointer;"
+                              onclick="showCategoryDetails('${type}', '${transaction.category.replace(/'/g, "&#39;")}')">
+                            ${transaction.category}
+                        </span>
+                    </td>
+                </tr>
+                <tr class="small text-muted">
+                    <td colspan="3" class="px-3 pb-2" style="border-top: none;">
+                        ${transaction.narration}
+                        ${transaction.notes ? `<br><small class="text-info">${transaction.notes}</small>` : ''}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function sortTable(type, column) {
+            const sort = currentSort[type];
+            
+            if (sort.column === column) {
+                sort.direction = sort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sort.column = column;
+                sort.direction = column === 'amount' ? 'desc' : 'asc';
+            }
+
+            updateTables();
+        }
+
+        function refreshData() {
+            loadAnalysisData();
+        }
+
+        async function showCategoryDetails(type, category) {
+            try {
+                if (!category) return;
+                // Update modal title immediately
+                document.getElementById('categoryModalTitle').textContent = `Category: ${category}`;
+                const tbody = document.getElementById('categoryTableBody');
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center">Loading...</td></tr>`;
+
+                const params = new URLSearchParams({ type, category });
+                const res = await fetch(`/api/category_details?${params.toString()}`);
+                const json = await res.json();
+                if (!json.success) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="text-danger text-center">${json.error || 'Failed to load'}</td></tr>`;
+                    const modal = new bootstrap.Modal(document.getElementById('categoryModal'));
+                    modal.show();
+                    return;
+                }
+
+                const data = json.data || { total: 0, count: 0, transactions: [] };
+                currentCategoryTxns = data.transactions || [];
+                currentCategoryMeta = { type, category, total: data.total || 0, count: data.count || 0 };
+                document.getElementById('categoryModalTitle').textContent = `${category} — ${formatCurrency(currentCategoryMeta.total)} (${currentCategoryMeta.count} transactions)`;
+                // Reset controls
+                const s = document.getElementById('catSearch'); if (s) s.value = '';
+                const sortSel = document.getElementById('catSort'); if (sortSel) sortSel.value = 'amount_desc';
+                const fromEl = document.getElementById('catFrom'); if (fromEl) fromEl.value = '';
+                const toEl = document.getElementById('catTo'); if (toEl) toEl.value = '';
+                renderCategoryTable();
+
+                const modal = new bootstrap.Modal(document.getElementById('categoryModal'));
+                modal.show();
+            } catch (e) {
+                const tbody = document.getElementById('categoryTableBody');
+                tbody.innerHTML = `<tr><td colspan=\"4\" class=\"text-danger text-center\">${e.message}</td></tr>`;
+                const modal = new bootstrap.Modal(document.getElementById('categoryModal'));
+                modal.show();
+            }
+        }
+
+        function renderCategoryTable() {
+            const tbody = document.getElementById('categoryTableBody');
+            if (!currentCategoryTxns || currentCategoryTxns.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center">No transactions</td></tr>`;
+                return;
+            }
+            const q = (document.getElementById('catSearch')?.value || '').toLowerCase();
+            const sortVal = document.getElementById('catSort')?.value || 'amount_desc';
+            const fromStr = document.getElementById('catFrom')?.value || '';
+            const toStr = document.getElementById('catTo')?.value || '';
+            const fromDate = fromStr ? new Date(fromStr) : null;
+            const toDate = toStr ? new Date(toStr) : null;
+
+            let filtered = currentCategoryTxns.filter(t => {
+                if (!q) return true;
+                const hay = `${t.narration || ''} ${t.notes || ''}`.toLowerCase();
+                return hay.includes(q);
+            });
+
+            // Date range filter
+            filtered = filtered.filter(t => {
+                const dt = parseBankDate(t.date) || new Date(t.date);
+                if (!(dt instanceof Date) || isNaN(dt)) return false;
+                if (fromDate && dt < fromDate) return false;
+                if (toDate) {
+                    // include the whole 'to' day
+                    const end = new Date(toDate);
+                    end.setHours(23,59,59,999);
+                    if (dt > end) return false;
+                }
+                return true;
+            });
+
+            filtered.sort((a, b) => {
+                if (sortVal === 'amount_asc') return (a.amount || 0) - (b.amount || 0);
+                if (sortVal === 'amount_desc') return (b.amount || 0) - (a.amount || 0);
+                // date sorts
+                const da = parseBankDate(a.date) || new Date(a.date);
+                const db = parseBankDate(b.date) || new Date(b.date);
+                if (sortVal === 'date_asc') return da - db;
+                return db - da; // date_desc
+            });
+
+            tbody.innerHTML = filtered.map(t => `
+                <tr>
+                    <td class="small">${formatDate(t.date)}</td>
+                    <td class="fw-bold">${formatCurrency(t.amount)}</td>
+                    <td class="small">${t.narration || ''}</td>
+                    <td class="small">${t.notes || ''}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Bind modal controls once
+        document.addEventListener('DOMContentLoaded', function() {
+            const s = document.getElementById('catSearch');
+            const sortSel = document.getElementById('catSort');
+            if (s) s.addEventListener('input', renderCategoryTable);
+            if (sortSel) sortSel.addEventListener('change', renderCategoryTable);
+            const fromEl = document.getElementById('catFrom');
+            const toEl = document.getElementById('catTo');
+            if (fromEl) fromEl.addEventListener('change', renderCategoryTable);
+            if (toEl) toEl.addEventListener('change', renderCategoryTable);
+        });
+
+        function saveState() {
+            const name = prompt('Enter a name for this state:');
+            if (name && name.trim()) {
+                fetch('/api/save_state', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name.trim() })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('State saved successfully!');
+                    } else {
+                        alert('Save failed: ' + data.error);
+                    }
+                });
+            }
+        }
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', loadAnalysisData);
+    </script>
+</body>
+</html>

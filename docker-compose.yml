@@ -1,0 +1,11 @@
+version: "3.9"
+services:
+  cost_analysis:
+    build:
+      context: .
+    container_name: cost_analysis
+    ports:
+      - "9003:5000"
+    volumes:
+      - ./saves:/app/saves
+    restart: unless-stopped

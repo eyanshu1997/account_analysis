@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Categorize Expenses - Transaction Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .transaction-card { transition: all 0.2s; cursor: pointer; }
+        .transaction-card:hover { transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .category-badge { font-size: 0.8em; }
+        .amount-text { font-weight: bold; color: #dc3545; }
+    </style>
+</head>
+<body class="bg-light">
+    {% include 'partials/navbar.html' %}
+
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                <h2 class="mb-4">
+                    <i class="fas fa-arrow-down text-danger me-2"></i>
+                    Categorize Expenses
+                    <small class="text-muted">({{ expenses|length }} transactions)</small>
+                </h2>
+
+                <!-- Filter Controls -->
+                <div class="card mb-4 border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-3">
+                                <select class="form-select" id="categoryFilter">
+                                    <option value="">All Categories</option>
+                                    <option value="Uncategorized">Uncategorized</option>
+                                    <option value="IGNORED">Ignored</option>
+                                    {% for category in categories %}
+                                    <option value="{{ category }}">{{ category }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" id="searchFilter" placeholder="Search transactions...">
+                            </div>
+                            <div class="col-md-3">
+                                <div class="btn-group" role="group">
+                                    <input type="radio" class="btn-check" name="sortOrder" id="sortDesc" autocomplete="off" {% if sort_order == 'desc' %}checked{% endif %}>
+                                    <label class="btn btn-outline-primary" for="sortDesc">
+                                        <i class="fas fa-sort-amount-down me-1"></i>High to Low
+                                    </label>
+                                    
+                                    <input type="radio" class="btn-check" name="sortOrder" id="sortAsc" autocomplete="off" {% if sort_order == 'asc' %}checked{% endif %}>
+                                    <label class="btn btn-outline-primary" for="sortAsc">
+                                        <i class="fas fa-sort-amount-up me-1"></i>Low to High
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <select class="form-select" id="sortOrder" onchange="changeSorting()">
+                                    <option value="desc" {{ 'selected' if sort_order == 'desc' else '' }}>Amount: High to Low</option>
+                                    <option value="asc" {{ 'selected' if sort_order == 'asc' else '' }}>Amount: Low to High</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-outline-primary" onclick="clearFilters()">
+                                    <i class="fas fa-refresh me-2"></i>Clear Filters
+                                </button>
+                            </div>
+                            <div class="col-md-1">
+                                <button class="btn btn-success" onclick="openAddCategoryModal()">
+                                    <i class="fas fa-plus me-2"></i>Add Category
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transactions List -->
+                <div class="row" id="transactionsContainer">
+                    {% for expense in expenses %}
+                    <div class="col-md-6 col-lg-4 mb-3 transaction-item" 
+                         data-category="{{ expense.category }}" 
+                         data-narration="{{ expense.narration|lower }}">
+                        <div class="card transaction-card border-0 shadow-sm h-100" onclick="openCategorizeModal('{{ expense.transaction_id }}', '{{ expense.category }}', '{{ expense.notes }}', '{{ expense.date }}', '{{ expense.amount }}', `{{ expense.narration }}`)">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <small class="text-muted">{{ expense.date }}</small>
+                                    <span class="badge bg-{{ 'success' if expense.category != 'Uncategorized' else 'secondary' }} category-badge">
+                                        {{ expense.category }}
+                                    </span>
+                                </div>
+                                
+                                <h6 class="card-title text-truncate" title="{{ expense.narration }}">
+                                    {{ expense.narration[:50] }}{% if expense.narration|length > 50 %}...{% endif %}
+                                </h6>
+                                
+                                <p class="amount-text mb-1">{{ expense.amount }}</p>
+                                
+                                {% if expense.notes %}
+                                <small class="text-info">
+                                    <i class="fas fa-sticky-note me-1"></i>{{ expense.notes }}
+                                </small>
+                                {% endif %}
+                                
+                                <div class="mt-2">
+                                    <button class="btn btn-sm btn-outline-success me-1" onclick="event.stopPropagation(); quickCategorize('{{ expense.transaction_id }}', 'categorize')" title="Categorize">
+                                        <i class="fas fa-tag"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="event.stopPropagation(); quickCategorize('{{ expense.transaction_id }}', 'ignore')" title="Ignore">
+                                        <i class="fas fa-eye-slash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Categorization Modal -->
+    <div class="modal fade" id="categorizeModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Categorize Transaction</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Transaction Details Card -->
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title text-primary mb-2">Transaction Details</h6>
+                            <div class="row">
+                                <div class="col-sm-4">
+                                    <strong>Date:</strong><br>
+                                    <span id="modalTransactionDate">-</span>
+                                </div>
+                                <div class="col-sm-4">
+                                    <strong>Amount:</strong><br>
+                                    <span id="modalTransactionAmount" class="text-danger fw-bold">-</span>
+                                </div>
+                                <div class="col-sm-4">
+                                    <strong>ID:</strong><br>
+                                    <small id="modalTransactionId" class="text-muted">-</small>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <strong>Description:</strong><br>
+                                <div id="modalTransactionNarration" class="text-wrap small">-</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <form id="categorizeForm">
+                        <input type="hidden" id="transactionId" name="transaction_id">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Category</label>
+                            <select class="form-select" id="categorySelect" name="category">
+                                <option value="">Select Category...</option>
+                                {% for category in categories %}
+                                <option value="{{ category }}">{{ category }}</option>
+                                {% endfor %}
+                                <option value="CREATE_NEW">+ Create New Category</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3" id="newCategoryDiv" style="display: none;">
+                            <label class="form-label">New Category Name</label>
+                            <input type="text" class="form-control" id="newCategoryInput" maxlength="50" placeholder="Enter new category name">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Notes (Optional)</label>
+                            <textarea class="form-control" id="notesInput" name="notes" rows="2"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-warning me-2" onclick="ignoreTransaction()">
+                        <i class="fas fa-eye-slash me-2"></i>Ignore
+                    </button>
+                    <button type="button" class="btn btn-primary me-2" onclick="markAsSaving()">
+                        <i class="fas fa-piggy-bank me-2"></i>Mark as Saving
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" onclick="saveCategoriztion()">
+                        <i class="fas fa-save me-2"></i>Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Category Modal -->
+    <div class="modal fade" id="addCategoryModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add New Expense Category</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addCategoryForm">
+                        <div class="mb-3">
+                            <label for="newCategoryName" class="form-label">Category Name</label>
+                            <input type="text" class="form-control" id="newCategoryName" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" onclick="addCategory()">Add Category</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentTransactionId = '';
+        const categorizeModal = new bootstrap.Modal(document.getElementById('categorizeModal'));
+
+        // Persist filters across reloads using localStorage
+        const EXP_FILTER_KEY = 'expenses_filters';
+        function saveFilters(){
+            try {
+                const state = {
+                    category: document.getElementById('categoryFilter')?.value || '',
+                    search: document.getElementById('searchFilter')?.value || '',
+                    sort: document.getElementById('sortOrder')?.value || ''
+                };
+                localStorage.setItem(EXP_FILTER_KEY, JSON.stringify(state));
+            } catch(e) { /* noop */ }
+        }
+        function restoreFilters(){
+            try {
+                const raw = localStorage.getItem(EXP_FILTER_KEY);
+                if (!raw) return;
+                const state = JSON.parse(raw);
+                if (state.category !== undefined) document.getElementById('categoryFilter').value = state.category;
+                if (state.search !== undefined) document.getElementById('searchFilter').value = state.search;
+                if (state.sort !== undefined && state.sort) document.getElementById('sortOrder').value = state.sort;
+                filterTransactions();
+            } catch(e) { /* noop */ }
+        }
+        document.addEventListener('DOMContentLoaded', restoreFilters);
+        // Save on changes
+        document.addEventListener('DOMContentLoaded', function(){
+            const cat = document.getElementById('categoryFilter');
+            const sea = document.getElementById('searchFilter');
+            const sor = document.getElementById('sortOrder');
+            if (cat) cat.addEventListener('change', saveFilters);
+            if (sea) sea.addEventListener('input', saveFilters);
+            if (sor) sor.addEventListener('change', saveFilters);
+        });
+
+        function openCategorizeModal(transactionId, currentCategory, currentNotes, transactionDate, transactionAmount, transactionNarration) {
+            currentTransactionId = transactionId;
+            document.getElementById('transactionId').value = transactionId;
+            document.getElementById('categorySelect').value = currentCategory !== 'Uncategorized' ? currentCategory : '';
+            document.getElementById('notesInput').value = currentNotes || '';
+            
+            // Populate transaction details in modal
+            document.getElementById('modalTransactionDate').textContent = transactionDate || '-';
+            document.getElementById('modalTransactionAmount').textContent = transactionAmount || '-';
+            document.getElementById('modalTransactionId').textContent = transactionId || '-';
+            document.getElementById('modalTransactionNarration').textContent = transactionNarration || '-';
+            
+            // Only show Ignore; Unignore removed as ignored transactions are deleted
+            
+            categorizeModal.show();
+        }
+
+        // Handle category selection change
+        document.getElementById('categorySelect').addEventListener('change', function() {
+            const newCategoryDiv = document.getElementById('newCategoryDiv');
+            if (this.value === 'CREATE_NEW') {
+                newCategoryDiv.style.display = 'block';
+            } else {
+                newCategoryDiv.style.display = 'none';
+            }
+        });
+
+        function saveCategoriztion() {
+            const formData = new FormData(document.getElementById('categorizeForm'));
+            let category = formData.get('category');
+            const notes = formData.get('notes');
+            
+            // Handle new category creation
+            if (category === 'CREATE_NEW') {
+                const newCategoryName = document.getElementById('newCategoryInput').value.trim();
+                if (!newCategoryName) {
+                    alert('Please enter a category name');
+                    return;
+                }
+                // First, add the category to backend so it persists and appears in filters
+                fetch('/add_category', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ category_name: newCategoryName, category_type: 'expense' })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) {
+                        throw new Error(res.error || 'Failed to add category');
+                    }
+                    // Update dropdowns locally
+                    const categorySelect = document.getElementById('categorySelect');
+                    const categoryFilter = document.getElementById('categoryFilter');
+                    const opt1 = document.createElement('option'); opt1.value = newCategoryName; opt1.textContent = newCategoryName; categorySelect.insertBefore(opt1, categorySelect.querySelector('option[value="CREATE_NEW"]'));
+                    const opt2 = document.createElement('option'); opt2.value = newCategoryName; opt2.textContent = newCategoryName; categoryFilter.appendChild(opt2);
+                    // Proceed to categorize with the new category
+                    doCategorize(newCategoryName, notes, formData.get('transaction_id'));
+                })
+                .catch(err => alert('Error: ' + err.message));
+                return;
+            }
+
+            doCategorize(category, notes, formData.get('transaction_id'));
+        }
+
+        function doCategorize(category, notes, transactionId){
+            const data = { transaction_id: transactionId, category: category, notes: notes, action: 'categorize' };
+            fetch('/categorize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    categorizeModal.hide();
+                    location.reload();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            });
+        }
+
+        function ignoreTransaction() {
+            fetch('/api/move_to_ignored', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transaction_id: currentTransactionId })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    categorizeModal.hide();
+                    location.reload();
+                } else {
+                    alert('Error: ' + (res.error || 'Failed to ignore'));
+                }
+            });
+        }
+
+        function markAsSaving() {
+            const data = {
+                transaction_id: currentTransactionId,
+                action: 'mark_saving'
+            };
+
+            fetch('/mark_saving', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    categorizeModal.hide();
+                    location.reload();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            });
+        }
+
+        function quickCategorize(transactionId, action) {
+            if (action === 'ignore') {
+                fetch('/api/move_to_ignored', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transaction_id: transactionId })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (res.error || 'Failed to ignore'));
+                    }
+                });
+            } else {
+                openCategorizeModal(transactionId, 'Uncategorized', '');
+            }
+        }
+
+        function changeSorting() {
+            const sortOrder = document.getElementById('sortOrder').value;
+            window.location.href = '/expenses?sort=' + sortOrder;
+        }
+
+        // Filter functionality
+        document.getElementById('categoryFilter').addEventListener('change', filterTransactions);
+        document.getElementById('searchFilter').addEventListener('input', filterTransactions);
+
+        function filterTransactions() {
+            const categoryFilter = document.getElementById('categoryFilter').value.toLowerCase();
+            const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+            const transactions = document.querySelectorAll('.transaction-item');
+
+            transactions.forEach(item => {
+                const category = item.dataset.category.toLowerCase();
+                const narration = item.dataset.narration;
+                
+                const categoryMatch = !categoryFilter || category === categoryFilter;
+                const searchMatch = !searchFilter || narration.includes(searchFilter);
+                
+                item.style.display = (categoryMatch && searchMatch) ? 'block' : 'none';
+            });
+        }
+
+        function clearFilters() {
+            document.getElementById('categoryFilter').value = '';
+            document.getElementById('searchFilter').value = '';
+            filterTransactions();
+        }
+
+        // Sort functionality
+        document.getElementById('sortDesc').addEventListener('change', function() {
+            if (this.checked) {
+                window.location.href = '/expenses?sort=desc';
+            }
+        });
+        
+        document.getElementById('sortAsc').addEventListener('change', function() {
+            if (this.checked) {
+                window.location.href = '/expenses?sort=asc';
+            }
+        });
+
+        // Add Category functionality
+        const addCategoryModal = new bootstrap.Modal(document.getElementById('addCategoryModal'));
+
+        function openAddCategoryModal() {
+            document.getElementById('newCategoryName').value = '';
+            addCategoryModal.show();
+        }
+
+        function addCategory() {
+            const categoryName = document.getElementById('newCategoryName').value.trim();
+            
+            if (!categoryName) {
+                alert('Please enter a category name');
+                return;
+            }
+
+            fetch('/add_category', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    category_name: categoryName,
+                    category_type: 'expense'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update the category dropdown
+                    const categorySelect = document.getElementById('categorySelect');
+                    const categoryFilter = document.getElementById('categoryFilter');
+                    
+                    // Add new option to categorize modal dropdown
+                    const newOption1 = document.createElement('option');
+                    newOption1.value = categoryName;
+                    newOption1.textContent = categoryName;
+                    categorySelect.appendChild(newOption1);
+                    
+                    // Add new option to filter dropdown
+                    const newOption2 = document.createElement('option');
+                    newOption2.value = categoryName;
+                    newOption2.textContent = categoryName;
+                    categoryFilter.appendChild(newOption2);
+                    
+                    addCategoryModal.hide();
+                    alert('Category added successfully!');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to add category');
+            });
+        }
+
+        function saveState() {
+            const name = prompt('Enter a name for this state:');
+            if (name && name.trim()) {
+                fetch('/api/save_state', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name.trim() })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('State saved successfully!');
+                    } else {
+                        alert('Save failed: ' + data.error);
+                    }
+                });
+            }
+        }
+
+        function resetApp() {
+            if (!confirm('Reset app and clear current working directory? This cannot be undone.')) return;
+            fetch('/api/reset_current', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = '/';
+                    } else {
+                        alert('Reset failed: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => alert('Reset failed: ' + err.message));
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Categorization Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .stats-card { transition: transform 0.2s; }
+        .stats-card:hover { transform: translateY(-2px); }
+        .progress-custom { height: 8px; }
+    </style>
+</head>
+<body class="bg-light">
+    {% include 'partials/navbar.html' %}
+
+    <div class="container">
+        <div class="row">
+            <div class="col-12 d-flex justify-content-between align-items-center">
+                <h2 class="mb-4"><i class="fas fa-dashboard me-2"></i>Dashboard</h2>
+                <button class="btn btn-success" onclick="openAddTxnModal()">
+                    <i class="fas fa-plus me-1"></i> Add Transaction
+                </button>
+            </div>
+            
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card stats-card border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="fas fa-list fa-2x text-primary mb-2"></i>
+                            <h3 class="card-title">{{ stats.total_transactions }}</h3>
+                            <p class="card-text text-muted">Total Transactions</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card stats-card border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="fas fa-arrow-down fa-2x text-danger mb-2"></i>
+                            <h3 class="card-title">{{ stats.total_expenses }}</h3>
+                            <p class="card-text text-muted">Expenses</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card stats-card border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="fas fa-arrow-up fa-2x text-success mb-2"></i>
+                            <h3 class="card-title">{{ stats.total_income }}</h3>
+                            <p class="card-text text-muted">Income</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card stats-card border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="fas fa-tags fa-2x text-info mb-2"></i>
+                            <h3 class="card-title">{{ stats.categorized_expenses + stats.categorized_income }}</h3>
+                            <p class="card-text text-muted">Categorized</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Bars -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white">
+                            <h5 class="mb-0"><i class="fas fa-arrow-down text-danger me-2"></i>Expenses Progress</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Categorized</span>
+                                <span>{{ stats.categorized_expenses }}/{{ stats.total_expenses }}</span>
+                            </div>
+                            {% set expense_progress = (stats.categorized_expenses / stats.total_expenses * 100) if stats.total_expenses > 0 else 0 %}
+                            <div class="progress progress-custom">
+                                <div class="progress-bar bg-danger" style="width: {{ expense_progress }}%"></div>
+                            </div>
+                            <small class="text-muted">{{ "%.1f"|format(expense_progress) }}% complete</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white">
+                            <h5 class="mb-0"><i class="fas fa-arrow-up text-success me-2"></i>Income Progress</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Categorized</span>
+                                <span>{{ stats.categorized_income }}/{{ stats.total_income }}</span>
+                            </div>
+                            {% set income_progress = (stats.categorized_income / stats.total_income * 100) if stats.total_income > 0 else 0 %}
+                            <div class="progress progress-custom">
+                                <div class="progress-bar bg-success" style="width: {{ income_progress }}%"></div>
+                            </div>
+                            <small class="text-muted">{{ "%.1f"|format(income_progress) }}% complete</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white">
+                            <h5 class="mb-0"><i class="fas fa-tools me-2"></i>Actions</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <a href="/expenses" class="btn btn-danger w-100 btn-lg">
+                                        <i class="fas fa-arrow-down me-2"></i>
+                                        Categorize Expenses
+                                        <small class="d-block">{{ stats.uncategorized_expenses }} uncategorized</small>
+                                    </a>
+                                </div>
+                                
+                                <div class="col-md-4 mb-3">
+                                    <a href="/income" class="btn btn-success w-100 btn-lg">
+                                        <i class="fas fa-arrow-up me-2"></i>
+                                        Categorize Income
+                                        <small class="d-block">{{ stats.uncategorized_income }} uncategorized</small>
+                                    </a>
+                                </div>
+                                
+                                <div class="col-md-4 mb-3">
+                                    <a href="/analysis" class="btn btn-info w-100 btn-lg">
+                                        <i class="fas fa-analytics me-2"></i>
+                                        Financial Analysis
+                                        <small class="d-block">Detailed expenses, income & savings</small>
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <!-- Secondary Actions Row -->
+                            <div class="row mt-3 justify-content-center">
+                                <div class="col-md-6 mb-3">
+                                    <a href="/rules" class="btn btn-warning w-100 btn-lg">
+                                        <i class="fas fa-robot me-2"></i>
+                                        Rules Management
+                                        <small class="d-block">Auto-categorization rules</small>
+                                    </a>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <button onclick="applyRules()" class="btn btn-secondary w-100 btn-lg">
+                                        <i class="fas fa-magic me-2"></i>
+                                        Apply Rules
+                                        <small class="d-block">Auto-categorize uncategorized</small>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Transaction Modal -->
+    <div class="modal fade" id="addTxnModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Transaction</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addTxnForm">
+                        <div class="mb-3">
+                            <label class="form-label">Date</label>
+                            <input type="date" class="form-control" name="date" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Narration</label>
+                            <input type="text" class="form-control" name="narration" maxlength="200" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Amount</label>
+                                <input type="number" class="form-control" name="amount" step="0.01" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Type</label>
+                                <select class="form-select" name="txn_type">
+                                    <option value="expense">Expense</option>
+                                    <option value="income">Income</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Category (optional)</label>
+                            <input type="text" class="form-control" name="category" placeholder="Uncategorized">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea class="form-control" name="notes" rows="2"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" onclick="submitAddTxn()"><i class="fas fa-save me-1"></i>Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const addTxnModal = new bootstrap.Modal(document.getElementById('addTxnModal'));
+        function openAddTxnModal(){
+            document.getElementById('addTxnForm').reset();
+            addTxnModal.show();
+        }
+
+        function submitAddTxn(){
+            const form = document.getElementById('addTxnForm');
+            const data = Object.fromEntries(new FormData(form).entries());
+            if (!data.date || !data.narration || !data.amount){
+                alert('Please fill date, narration, and amount');
+                return;
+            }
+            // Normalize amount to number
+            data.amount = parseFloat(data.amount);
+            fetch('/api/add_transaction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(r => r.json())
+            .then(res => {
+                if(res.success){
+                    addTxnModal.hide();
+                    // Try to update counts if elements exist, else reload
+                    const totalEl = document.getElementById('totalTransactionsCount');
+                    const expEl = document.getElementById('totalExpensesCount');
+                    const incEl = document.getElementById('totalIncomeCount');
+                    if (res.summary && (totalEl || expEl || incEl)){
+                        if (totalEl) totalEl.textContent = res.summary.total_transactions;
+                        if (expEl) expEl.textContent = res.summary.expenses;
+                        if (incEl) incEl.textContent = res.summary.income;
+                    } else {
+                        location.reload();
+                    }
+                } else {
+                    alert('Error: ' + (res.error || 'Unknown error'));
+                }
+            })
+            .catch(err => alert('Error: ' + err.message));
+        }
+
+        function saveState() {
+            const name = prompt('Enter a name for this state:');
+            if (name && name.trim()) {
+                fetch('/api/save_state', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name.trim() })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('State saved successfully!');
+                    } else {
+                        alert('Save failed: ' + data.error);
+                    }
+                });
+            }
+        }
+
+        function resetApp() {
+            if (!confirm('Reset app and clear current working directory? This cannot be undone.')) return;
+            fetch('/api/reset_current', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = '/';
+                    } else {
+                        alert('Reset failed: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => alert('Reset failed: ' + err.message));
+        }
+
+        function applyRules() {
+            if (confirm('Apply all enabled rules to uncategorized transactions?')) {
+                fetch('/api/apply_rules', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(`Successfully applied rules to ${data.applied_count} transactions!`);
+                            location.reload();
+                        } else {
+                            alert('Error applying rules: ' + data.error);
+                        }
+                    });
+            }
+        }
+    </script>
+</body>
+</html>

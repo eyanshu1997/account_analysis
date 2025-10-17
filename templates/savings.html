@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Savings Transactions - Transaction Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .transaction-card { transition: all 0.2s; cursor: pointer; }
+        .transaction-card:hover { transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .category-badge { font-size: 0.8em; }
+        .amount-text { font-weight: bold; color: #28a745; }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-chart-line"></i> Transaction Analysis
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/analysis">Analysis</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/expenses">Expenses</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/income">Income</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/savings">Savings</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/rules">Rules</a>
+                    </li>
+                </ul>
+                <div class="navbar-nav">
+                    <li class="nav-item">
+                        <button class="nav-link btn btn-link text-light" onclick="saveState()">
+                            <i class="fas fa-save me-1"></i>Save State
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/load_existing">
+                            <i class="fas fa-folder-open me-1"></i>Load State
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link btn btn-link text-light" onclick="resetApp()">
+                            <i class="fas fa-undo me-1"></i>Reset App
+                        </button>
+                    </li>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-piggy-bank me-2"></i>Savings Transactions</h2>
+            <div class="d-flex gap-2">
+                <span class="badge bg-success fs-6">{{ savings|length }} Transactions</span>
+            </div>
+        </div>
+
+        {% if savings %}
+        <!-- Filters and Controls -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <input type="text" class="form-control" id="searchFilter" placeholder="Search transactions...">
+            </div>
+            <div class="col-md-4">
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="sortOrder" id="sortDesc" value="desc" autocomplete="off" {% if sort_order == 'desc' %}checked{% endif %}>
+                    <label class="btn btn-outline-primary" for="sortDesc">
+                        <i class="fas fa-sort-amount-down me-1"></i>High to Low
+                    </label>
+                    
+                    <input type="radio" class="btn-check" name="sortOrder" id="sortAsc" value="asc" autocomplete="off" {% if sort_order == 'asc' %}checked{% endif %}>
+                    <label class="btn btn-outline-primary" for="sortAsc">
+                        <i class="fas fa-sort-amount-up me-1"></i>Low to High
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transactions Grid -->
+        <div class="row" id="transactionsContainer">
+            {% for saving in savings %}
+            <div class="col-md-6 col-lg-4 mb-3 transaction-item">
+                <div class="card transaction-card h-100" onclick="openModal('{{ saving.transaction_id }}', '{{ saving.narration }}', '{{ saving.amount_value }}', '{{ saving.category }}', '{{ saving.notes }}', '{{ saving.date }}')">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title mb-0 text-truncate" style="max-width: 200px;">
+                                {{ saving.narration }}
+                            </h6>
+                            <span class="badge bg-success category-badge">Saving</span>
+                        </div>
+                        
+                        <div class="amount-text fs-5 mb-2">{{ saving.amount }}</div>
+                        
+                        <div class="small text-muted mb-2">
+                            <i class="fas fa-calendar me-1"></i>{{ saving.date }}
+                        </div>
+                        
+                        {% if saving.notes %}
+                        <div class="small text-info">
+                            <i class="fas fa-sticky-note me-1"></i>{{ saving.notes[:50] }}
+                            {% if saving.notes|length > 50 %}...{% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mt-2 d-flex gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-primary" 
+                                    onclick="event.stopPropagation(); moveToExpenses('{{ saving.transaction_id }}')">
+                                <i class="fas fa-arrow-left me-1"></i>Move to Expenses
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% else %}
+        <!-- Empty State -->
+        <div class="text-center py-5">
+            <i class="fas fa-piggy-bank fa-4x text-muted mb-3"></i>
+            <h4 class="text-muted">No Savings Yet</h4>
+            <p class="text-muted">Transactions marked as savings will appear here.</p>
+            <a href="/expenses" class="btn btn-primary">
+                <i class="fas fa-arrow-left me-2"></i>Go to Expenses
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Transaction Details Modal -->
+    <div class="modal fade" id="transactionModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-piggy-bank me-2"></i>Saving Transaction Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="transactionForm">
+                        <input type="hidden" id="transactionId" name="transaction_id">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <div class="form-control" id="narrationDisplay" readonly></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Amount</label>
+                            <div class="form-control amount-text" id="amountDisplay" readonly></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Date</label>
+                            <div class="form-control" id="dateDisplay" readonly></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <div class="form-control" id="notesDisplay" readonly></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="moveToExpensesFromModal()">
+                        <i class="fas fa-arrow-left me-2"></i>Move to Expenses
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentTransactionId = '';
+        let transactionModal;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            transactionModal = new bootstrap.Modal(document.getElementById('transactionModal'));
+            
+            // Search functionality
+            document.getElementById('searchFilter').addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const transactions = document.querySelectorAll('.transaction-item');
+                
+                transactions.forEach(transaction => {
+                    const text = transaction.textContent.toLowerCase();
+                    transaction.style.display = text.includes(searchTerm) ? 'block' : 'none';
+                });
+            });
+
+            // Sort functionality
+            document.querySelectorAll('input[name="sortOrder"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const sortOrder = this.value;
+                    const url = new URL(window.location);
+                    url.searchParams.set('sort', sortOrder);
+                    window.location = url;
+                });
+            });
+        });
+
+        function openModal(transactionId, narration, amount, category, notes, date) {
+            currentTransactionId = transactionId;
+            
+            document.getElementById('transactionId').value = transactionId;
+            document.getElementById('narrationDisplay').textContent = narration;
+            document.getElementById('amountDisplay').textContent = `₹${parseFloat(amount).toLocaleString()}`;
+            document.getElementById('dateDisplay').textContent = date;
+            document.getElementById('notesDisplay').textContent = notes || 'No notes';
+            
+            transactionModal.show();
+        }
+
+        function moveToExpenses(transactionId) {
+            const data = {
+                transaction_id: transactionId,
+                action: 'unmark_saving',
+                category: 'Uncategorized'
+            };
+
+            fetch('/mark_saving', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            });
+        }
+
+        function moveToExpensesFromModal() {
+            moveToExpenses(currentTransactionId);
+            transactionModal.hide();
+        }
+
+        function saveState() {
+            fetch('/save_state', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('State saved successfully!');
+                } else {
+                    alert('Error saving state: ' + result.error);
+                }
+            })
+            .catch(error => {
+                alert('Error saving state: ' + error.message);
+            });
+        }
+
+        function resetApp() {
+            if (!confirm('Reset app and clear current working directory? This cannot be undone.')) return;
+            fetch('/api/reset_current', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = '/';
+                    } else {
+                        alert('Reset failed: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => alert('Reset failed: ' + err.message));
+        }
+    </script>
+</body>
+</html>

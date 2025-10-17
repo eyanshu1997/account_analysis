@@ -1,0 +1,29 @@
+{
+  "expense_categories": [
+    "Food & Dining",
+    "Shopping", 
+    "Transportation",
+    "Bills & Utilities",
+    "Healthcare",
+    "Entertainment",
+    "Travel",
+    "Investment",
+    "Transfer",
+    "ATM",
+    "Fees",
+    "Cook",
+    "Maintenance",
+    "Others"
+  ],
+  "income_categories": [
+    "Salary",
+    "Business Income", 
+    "Investment Returns",
+    "Interest",
+    "Refund",
+    "Gift",
+    "Rental",
+    "Freelance",
+    "Others"
+  ]
+}
